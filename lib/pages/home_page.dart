@@ -7,7 +7,8 @@ import '../widgets/error_card_widget.dart';
 import '../widgets/macro_summary_widget.dart';
 import '../widgets/nutrients_list_widget.dart';
 import '../widgets/dual_fab_widget.dart';
-import '../dialogs/add_food_dialog.dart';
+import '../dialogs/ai_recommendations_dialog.dart';
+import '../theme/nutriwave_theme.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -72,6 +73,25 @@ class _HomePageState extends State<HomePage> {
     _loadNutritionData();
   }
 
+  void _showAIRecommendations() {
+    if (_nutritionData.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('No nutrition data available for recommendations'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AIRecommendationsDialog(
+        nutritionData: _nutritionData,
+      ),
+    );
+  }
+
   // Get main macronutrients for summary cards
   List<NutrientStatus> get _macronutrients {
     return _nutritionData.where((nutrient) {
@@ -81,6 +101,26 @@ class _HomePageState extends State<HomePage> {
              name == 'carbohydrates' || 
              name == 'total fat';
     }).toList();
+  }
+
+  // Check if there are significant nutrient deficiencies
+  bool get _hasDeficiencies {
+    return _nutritionData.any((nutrient) {
+      final percentage = nutrient.dailyGoal > 0 
+          ? (nutrient.currentIntake / nutrient.dailyGoal * 100)
+          : 100.0;
+      return percentage < 70;
+    });
+  }
+
+  // Get count of deficient nutrients
+  int get _deficiencyCount {
+    return _nutritionData.where((nutrient) {
+      final percentage = nutrient.dailyGoal > 0 
+          ? (nutrient.currentIntake / nutrient.dailyGoal * 100)
+          : 100.0;
+      return percentage < 70;
+    }).length;
   }
 
   @override
@@ -155,6 +195,108 @@ class _HomePageState extends State<HomePage> {
                   ),
                   const SizedBox(height: 16),
                   MacroSummaryWidget(macronutrients: _macronutrients),
+                  const SizedBox(height: 24),
+                ],
+
+                // AI Recommendations Button
+                if (_nutritionData.isNotEmpty) ...[
+                  Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: _hasDeficiencies 
+                            ? [context.darkTeal, context.primaryGreen]
+                            : [context.primaryGreen, context.darkTeal],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: context.primaryGreen.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: _showAIRecommendations,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  _hasDeficiencies ? Icons.lightbulb : Icons.auto_awesome,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _hasDeficiencies 
+                                          ? 'Get Smart Recommendations' 
+                                          : 'AI Nutrition Insights',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _hasDeficiencies 
+                                          ? '$_deficiencyCount nutrients need attention - get personalized suggestions'
+                                          : 'Great progress! Get tips to optimize your nutrition',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.9),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (_hasDeficiencies) ...[
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    '$_deficiencyCount',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                              Icon(
+                                Icons.arrow_forward_ios,
+                                color: Colors.white.withOpacity(0.8),
+                                size: 16,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 24),
                 ],
 
