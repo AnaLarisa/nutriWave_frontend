@@ -1,7 +1,7 @@
 
 class Constants {
   // Base URL
-  static const String baseUrl = 'http://192.168.43.82:5000'; // and change ip to localhost if testing from emulator
+  static const String baseUrl = 'http://192.168.42.94:5000'; // and change ip to localhost if testing from emulator
   
   // API Endpoints
   static const String createAccountEndpoint = '/Authentication/CreateAccount';
