@@ -1,10 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_downloader/flutter_downloader.dart';
 import 'pages/authentication/login_page.dart';
 import 'pages/authentication/signUp_page.dart';
 import 'pages/home_page.dart';
 import 'theme/nutriwave_theme.dart'; // Import your theme
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize flutter_downloader
+  await FlutterDownloader.initialize(
+    debug: true, // Set to false in production
+    ignoreSsl: true, // Set to false in production
+  );
+  
   runApp(const NutriWaveApp());
 }
 

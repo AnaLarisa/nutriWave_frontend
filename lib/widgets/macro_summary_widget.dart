@@ -84,7 +84,7 @@ class MacroSummaryWidget extends StatelessWidget {
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         color: color,
                         fontWeight: FontWeight.w700,
-                        fontSize: 10,
+                        fontSize: 11,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
