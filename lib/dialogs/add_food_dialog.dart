@@ -3,7 +3,11 @@ import '../services/nutrition_client.dart';
 import '../theme/nutriwave_theme.dart';
 
 class AddFoodDialog {
-  static void show(BuildContext context, {required VoidCallback onSuccess}) {
+  static void show(
+    BuildContext context, {
+    required VoidCallback onSuccess,
+    required VoidCallback onScanBarcode, // New callback for barcode scanning
+  }) {
     final controller = TextEditingController();
     final nutritionClient = NutritionClient();
     
@@ -29,14 +33,9 @@ class AddFoodDialog {
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: () {
-                  // TODO: Implement barcode scanning functionality
-                  print('🔍 Barcode scan button pressed');
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Barcode scanning coming soon!'),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
+                  // Close dialog and notify parent to handle barcode scanning
+                  Navigator.pop(context);
+                  onScanBarcode();
                 },
                 icon: const Icon(Icons.qr_code_scanner),
                 label: const Text('Scan Barcode'),

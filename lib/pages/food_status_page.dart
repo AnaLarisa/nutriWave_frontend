@@ -1,6 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:nutriwave_frontend/utils/barcode_validator.dart';
+import 'package:nutriwave_frontend/widgets/food/date_selector.dart';
+import 'package:nutriwave_frontend/widgets/food/empty_state.dart';
+import 'package:nutriwave_frontend/widgets/food/error_card.dart';
+import 'package:nutriwave_frontend/widgets/food/food_logs_header.dart';
+import 'package:nutriwave_frontend/widgets/food/food_logs_list.dart';
+import 'package:nutriwave_frontend/widgets/food/loading_widget.dart';
+import 'package:nutriwave_frontend/widgets/food/past_date_warning.dart';
+import '../widgets/barcode_scanner_page.dart';
+import '../utils/loading_dialog.dart';
 import '../services/nutrition_client.dart';
-import '../theme/nutriwave_theme.dart';
+import '../dialogs/add_food_dialog.dart';
 
 class FoodStatusPage extends StatefulWidget {
   const FoodStatusPage({super.key});
@@ -27,11 +37,6 @@ class _FoodStatusPageState extends State<FoodStatusPage> {
   void initState() {
     super.initState();
     _loadFoodLogs();
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 
   Future<void> _loadFoodLogs() async {
@@ -117,7 +122,6 @@ class _FoodStatusPageState extends State<FoodStatusPage> {
       );
 
       if (mounted) {
-        // Clear any existing snackbars first
         scaffoldMessenger.clearSnackBars();
         
         scaffoldMessenger.showSnackBar(
@@ -130,7 +134,7 @@ class _FoodStatusPageState extends State<FoodStatusPage> {
             backgroundColor: result.isSuccess 
                 ? const Color(0xFF3fc97c) 
                 : theme.colorScheme.error,
-            duration: const Duration(seconds: 2), // Shorter duration
+            duration: const Duration(seconds: 2),
           ),
         );
 
@@ -152,86 +156,156 @@ class _FoodStatusPageState extends State<FoodStatusPage> {
     }
   }
 
-  void _showAddFoodDialog() {
-    final controller = TextEditingController();
+void _showAddFoodDialog() {
+  AddFoodDialog.show(
+    context, 
+    onSuccess: () async {
+      print('🍽️ Food added successfully, refreshing list...');
+      setState(() {
+        _isLoading = true;
+      });
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (mounted) {
+        await _loadFoodLogs(); 
+        print('🍽️ Food list refreshed, current count: ${_foodLogs.length}');
+      }
+    },
+    onScanBarcode: _handleBarcodeScanning, // ADD THIS LINE
+  );
+}
+
+Future<void> _handleBarcodeScanning() async {
+  try {
+    print('📱 _handleBarcodeScanning: Starting barcode scan...');
     
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add Food'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Food description',
-            hintText: 'e.g., 2 slices of bread, 1 apple, 200g chicken',
-          ),
-          maxLines: 3,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (controller.text.trim().isNotEmpty) {
-                final navigator = Navigator.of(context);
-                final scaffoldMessenger = ScaffoldMessenger.of(context);
-                final theme = Theme.of(context);
-                
-                navigator.pop();
-                
-                if (!mounted) return;
-                
-                setState(() {
-                  _isLoading = true;
-                });
-                
-                final result = await _nutritionClient.addFoodIntake(
-                  description: controller.text.trim(),
-                );
-                
-                if (mounted) {
-                  // Clear any existing snackbars first
-                  scaffoldMessenger.clearSnackBars();
-                  
-                  scaffoldMessenger.showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        result.isSuccess 
-                            ? result.message ?? 'Food added successfully'
-                            : result.error ?? 'Failed to add food',
-                      ),
-                      backgroundColor: result.isSuccess 
-                          ? const Color(0xFF3fc97c) 
-                          : theme.colorScheme.error,
-                      duration: const Duration(seconds: 2), // Shorter duration
-                    ),
-                  );
-                  
-                  if (result.isSuccess) {
-                    print('🍽️ Food added successfully, refreshing list...');
-                    await Future.delayed(const Duration(milliseconds: 500));
-                    if (mounted) {
-                      await _loadFoodLogs(); 
-                      print('🍽️ Food list refreshed, current count: ${_foodLogs.length}');
-                    }
-                  } else {
-                    if (mounted) {
-                      setState(() {
-                        _isLoading = false;
-                      });
-                    }
-                  }
-                }
-              }
-            },
-            child: const Text('Add'),
-          ),
-        ],
+    // Navigate to barcode scanner page
+    final result = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const BarcodeScannerPage(),
       ),
     );
+
+    print('📱 _handleBarcodeScanning: Scanner returned with result: $result');
+
+    // Check if scan was cancelled or no result
+    if (result == null || result.isEmpty) {
+      print('📱 _handleBarcodeScanning: Scan was cancelled or no result');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Barcode scan cancelled'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
+    print('📱 _handleBarcodeScanning: Validating barcode: $result');
+    // Validate barcode
+    if (!BarcodeValidator.isValid(result)) {
+      print('📱 _handleBarcodeScanning: Invalid barcode format: $result');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Invalid barcode: $result'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      return;
+    }
+
+    print('📱 _handleBarcodeScanning: Barcode is valid, proceeding with API call');
+    
+    if (!mounted) {
+      print('📱 _handleBarcodeScanning: Widget not mounted, aborting');
+      return;
+    }
+
+    print('📱 _handleBarcodeScanning: Widget is mounted, making API call...');
+    
+    // Set loading state
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      // Make API call with loading dialog
+      final apiResult = await LoadingDialog.showWithFuture(
+        context,
+        _nutritionClient.addBarcodeIntake(barcode: result),
+        'Processing barcode...',
+      );
+      
+      print('📱 _handleBarcodeScanning: API call completed with result: $apiResult');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              apiResult.isSuccess 
+                  ? '✓ Added: ${apiResult.foodName ?? 'Food item'}' 
+                  : apiResult.error ?? 'Failed to add food item',
+            ),
+            backgroundColor: apiResult.isSuccess 
+                ? const Color(0xFF3fc97c) 
+                : Theme.of(context).colorScheme.error,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        
+        if (apiResult.isSuccess) {
+          print('📱 _handleBarcodeScanning: Success, refreshing food list...');
+          // Refresh the food list
+          await Future.delayed(const Duration(milliseconds: 500));
+          if (mounted) {
+            await _loadFoodLogs();
+          }
+        } else {
+          // Reset loading state on error
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      print('📱 _handleBarcodeScanning: API call failed with exception: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error processing barcode: ${e.toString()}'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+  } catch (e, stackTrace) {
+    print('📱 _handleBarcodeScanning: Error: $e');
+    print('📱 _handleBarcodeScanning: Stack trace: $stackTrace');
+    
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -259,69 +333,46 @@ class _FoodStatusPageState extends State<FoodStatusPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildDateSelector(),
+              DateSelector(
+                selectedDate: _selectedDate,
+                onDateChanged: (date) {
+                  setState(() {
+                    _selectedDate = date;
+                  });
+                  _loadFoodLogs();
+                },
+              ),
               const SizedBox(height: 20),
 
               if (!_isToday) ...[
-                Card(
-                  color: Colors.orange.withOpacity(0.1),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          color: Colors.orange,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'You can only add food items for today. This is a view-only mode for past dates.',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.orange.shade700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                PastDateWarning(),
                 const SizedBox(height: 16),
               ],
 
               if (_isLoading)
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(40),
-                    child: CircularProgressIndicator(),
-                  ),
-                ),
+                const LoadingWidget(),
               
               if (_error != null && !_isLoading)
-                _buildErrorCard(),
+                ErrorCard(
+                  error: _error!,
+                  onRetry: _loadFoodLogs,
+                ),
               
               if (!_isLoading && _error == null) ...[
-                Row(
-                  children: [
-                    Icon(
-                      Icons.restaurant,
-                      color: const Color(0xFF3fc97c),
-                      size: 24,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Food Items (${_foodLogs.length})',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                  ],
-                ),
+                FoodLogsHeader(foodCount: _foodLogs.length),
                 const SizedBox(height: 16),
                 
                 if (_foodLogs.isEmpty)
-                  _buildEmptyState()
+                  EmptyState(
+                    isToday: _isToday,
+                    onAddFood: _showAddFoodDialog,
+                  )
                 else
-                  _buildFoodLogsList(),
+                  FoodLogsList(
+                    foodLogs: _foodLogs,
+                    isToday: _isToday,
+                    onRemoveFood: _removeFoodLog,
+                  ),
               ],
             ],
           ),
@@ -331,324 +382,6 @@ class _FoodStatusPageState extends State<FoodStatusPage> {
         onPressed: _showAddFoodDialog,
         child: const Icon(Icons.add),
       ) : null,
-    );
-  }
-
-  Widget _buildDateSelector() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Icon(
-              Icons.calendar_today,
-              color: const Color(0xFF3fc97c),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Selected Date',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  Text(
-                    '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ],
-              ),
-            ),
-            IconButton(
-              onPressed: () async {
-                final picked = await showDatePicker(
-                  context: context,
-                  initialDate: _selectedDate,
-                  firstDate: DateTime.now().subtract(const Duration(days: 365)),
-                  lastDate: DateTime.now(),
-                );
-                if (picked != null && picked != _selectedDate) {
-                  setState(() {
-                    _selectedDate = picked;
-                  });
-                  _loadFoodLogs();
-                }
-              },
-              icon: const Icon(Icons.edit_calendar),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildErrorCard() {
-    return Card(
-      color: Theme.of(context).colorScheme.errorContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Icon(
-              Icons.error_outline,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Error Loading Data',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                  Text(
-                    _error ?? 'Unknown error',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            TextButton(
-              onPressed: _loadFoodLogs,
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Column(
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Center(
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.restaurant,
-                    size: 48,
-                    color: Colors.grey,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No food items logged',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Colors.grey,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Start logging your meals to see them here',
-                    style: Theme.of(context).textTheme.bodySmall,
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        
-        if (_isToday) ...[
-          const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF3fc97c).withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          Icons.add_circle_outline,
-                          color: const Color(0xFF3fc97c),
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Add Food',
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                color: const Color(0xFF3fc97c),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Log your meals to track nutrition',
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: Theme.of(context).brightness == Brightness.dark 
-                                    ? Colors.white70 
-                                    : Colors.black54,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _isToday ? _showAddFoodDialog : null,
-                      icon: const Icon(Icons.restaurant),
-                      label: Text(_isToday ? 'Add Food Item' : 'Cannot add items for past dates'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _isToday ? const Color(0xFF3fc97c) : Colors.grey,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          Card(
-            color: const Color(0xFF3fc97c).withOpacity(0.05),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.lightbulb_outline,
-                        color: const Color(0xFF3fc97c),
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Quick Tips',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: const Color(0xFF3fc97c),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _buildTip('Be specific with portions (e.g., "200g grilled chicken")'),
-                  _buildTip('Include cooking methods (e.g., "fried", "grilled", "boiled")'),
-                  _buildTip('Add brand names for packaged foods when possible'),
-                  _buildTip('Log meals as soon as possible for better accuracy'),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildFoodLogsList() {
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _foodLogs.length,
-      itemBuilder: (context, index) {
-        final foodLog = _foodLogs[index];
-        return _buildFoodLogCard(foodLog);
-      },
-    );
-  }
-
-  Widget _buildFoodLogCard(String foodDescription) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF3fc97c).withOpacity(0.15),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                Icons.restaurant,
-                color: const Color(0xFF3fc97c),
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                foodDescription,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            if (_isToday) ...[
-              const SizedBox(width: 8),
-              IconButton(
-                onPressed: () => _removeFoodLog(foodDescription),
-                icon: const Icon(
-                  Icons.delete_outline,
-                  color: Colors.red,
-                ),
-                tooltip: 'Remove food item',
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTip(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            margin: const EdgeInsets.only(top: 6),
-            width: 4,
-            height: 4,
-            decoration: BoxDecoration(
-              color: const Color(0xFF3fc97c),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).brightness == Brightness.dark 
-                    ? Colors.white70 
-                    : Colors.black87,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

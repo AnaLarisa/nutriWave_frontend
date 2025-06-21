@@ -1,5 +1,8 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:nutriwave_frontend/models/barcode_intake_result.dart';
+import 'package:nutriwave_frontend/models/food_intake_result.dart';
+import 'package:nutriwave_frontend/models/food_logs_result.dart';
 import '../helpers/constants.dart';
 import '../services/authentication_client.dart';
 import '../models/nutrient_status.dart';
@@ -21,47 +24,6 @@ class NutritionResult {
 
   factory NutritionResult.failure({required String error}) {
     return NutritionResult._(isSuccess: false, error: error);
-  }
-}
-
-class FoodIntakeResult {
-  final bool isSuccess;
-  final String? message;
-  final String? error;
-
-  FoodIntakeResult._({
-    required this.isSuccess,
-    this.message,
-    this.error,
-  });
-
-  factory FoodIntakeResult.success({String? message}) {
-    return FoodIntakeResult._(isSuccess: true, message: message);
-  }
-
-  factory FoodIntakeResult.failure({required String error}) {
-    return FoodIntakeResult._(isSuccess: false, error: error);
-  }
-}
-
-// Add this new result class for food logs
-class FoodLogsResult {
-  final bool isSuccess;
-  final List<String>? foodLogs;
-  final String? error;
-
-  FoodLogsResult._({
-    required this.isSuccess,
-    this.foodLogs,
-    this.error,
-  });
-
-  factory FoodLogsResult.success({required List<String> foodLogs}) {
-    return FoodLogsResult._(isSuccess: true, foodLogs: foodLogs);
-  }
-
-  factory FoodLogsResult.failure({required String error}) {
-    return FoodLogsResult._(isSuccess: false, error: error);
   }
 }
 
@@ -199,7 +161,7 @@ class NutritionClient {
     }
   }
 
-  // Add food intake
+  // add food intake
   Future<FoodIntakeResult> addFoodIntake({required String description}) async {
     try {
       final authClient = AuthenticationClient();
@@ -245,6 +207,80 @@ class NutritionClient {
       }
     }
   }
+
+// add barcode intake
+Future<BarcodeIntakeResult> addBarcodeIntake({required String barcode}) async {
+  print('📱 NutritionClient.addBarcodeIntake: Starting with barcode: $barcode');
+  
+  try {
+    final authClient = AuthenticationClient();
+    
+    if (!authClient.isAuthenticated) {
+      return BarcodeIntakeResult.failure(error: 'Please log in to add food items');
+    }
+
+    final url = Uri.parse('${Constants.baseUrl}/Nutrients/barcode-intake');
+    
+    final response = await http.post(
+      url,
+      headers: {
+        ...Constants.defaultHeaders,
+        'Authorization': 'Bearer ${authClient.currentToken}',
+      },
+      body: json.encode(barcode),
+    ).timeout(
+      const Duration(seconds: 30),
+      onTimeout: () => throw Exception('Request timed out'),
+    );
+
+    print('📱 Response status: ${response.statusCode}');
+    print('📱 Response body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      try {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        return BarcodeIntakeResult.success(
+          message: responseData['message'] ?? 'Food item added successfully',
+          foodName: responseData['foodName'],
+        );
+      } catch (jsonError) {
+        return BarcodeIntakeResult.failure(error: 'Invalid response format');
+      }
+    } else if (response.statusCode == 400) {
+      // Handle "Product not found" case
+      try {
+        final Map<String, dynamic> errorData = json.decode(response.body);
+        final errorMessage = errorData['error'] ?? 'Invalid barcode. Please try scanning again';
+        return BarcodeIntakeResult.failure(error: errorMessage);
+      } catch (jsonError) {
+        return BarcodeIntakeResult.failure(error: 'Product not found. This barcode is not in our nutrition database. Try entering the food manually.');
+      }
+    } else if (response.statusCode == 401) {
+      return BarcodeIntakeResult.failure(error: 'Session expired. Please log in again');
+    } else if (response.statusCode == 500) {
+      try {
+        final Map<String, dynamic> errorData = json.decode(response.body);
+        final errorMessage = errorData['error'] ?? 'Server error occurred. Please try again later.';
+        return BarcodeIntakeResult.failure(error: errorMessage);
+      } catch (jsonError) {
+        return BarcodeIntakeResult.failure(error: 'Server error occurred. Please try again later.');
+      }
+    } else {
+      return BarcodeIntakeResult.failure(
+        error: 'Unable to process barcode. Please try scanning again or enter the food manually.'
+      );
+    }
+  } catch (e) {
+    print('📱 Exception in addBarcodeIntake: $e');
+    if (e.toString().contains('SocketException')) {
+      return BarcodeIntakeResult.failure(error: 'No internet connection. Please check your network and try again.');
+    } else if (e.toString().contains('timeout')) {
+      return BarcodeIntakeResult.failure(error: 'Request timed out. Please try again.');
+    } else {
+      return BarcodeIntakeResult.failure(error: 'Something went wrong. Please try scanning again or enter the food manually.');
+    }
+  }
+}
 
   // Remove food intake
   Future<FoodIntakeResult> removeFoodIntake({required String description}) async {

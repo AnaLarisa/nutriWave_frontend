@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/sport_client.dart';
 import '../models/sport_log_dto.dart';
-import '../theme/nutriwave_theme.dart';
 
 class SportStatusPage extends StatefulWidget {
   const SportStatusPage({super.key});
