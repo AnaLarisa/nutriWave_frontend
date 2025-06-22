@@ -32,11 +32,6 @@ class MedicalProcessorClient {
 
       final url = Uri.parse('${Constants.baseUrl}/api/MedicalProcessor/process-pdf');
       
-      print('🔍 Processing PDF: ${pdfFile.path}');
-      print('🔍 File size: ${await pdfFile.length()} bytes');
-      print('🔍 Full URL: $url');
-      print('🔍 Base URL from Constants: ${Constants.baseUrl}');
-      
       // Create multipart request
       var request = http.MultipartRequest('POST', url);
       
@@ -51,11 +46,8 @@ class MedicalProcessorClient {
       var multipartFile = await http.MultipartFile.fromPath(
         'pdfFile', // This should match the parameter name in your controller
         pdfFile.path,
-        // The filename will be automatically extracted from the path
       );
       request.files.add(multipartFile);
-      
-      print('🔍 Sending request to: $url');
       
       // Send request with extended timeout since processing might take a while
       final streamedResponse = await request.send().timeout(

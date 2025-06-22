@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:nutriwave_frontend/helpers/constants.dart';
 import '../models/nutrient_status.dart';
 import '../models/recommendation_result.dart';
 
@@ -8,9 +9,9 @@ class AIRecommendationsClient {
   factory AIRecommendationsClient() => _instance;
   AIRecommendationsClient._internal();
 
-  static const String _geminiApiKey = 'AIzaSyAFqIel0KZx-00HMT3ybXcnbq1IinPZFlo';
+  static final String _geminiApiKey = Constants.geminiApiKey;
 
-  
+
   Future<RecommendationResult> getRecommendations({
     required List<NutrientStatus> nutritionData,
     String? userPreferences, // Keep for compatibility but make optional

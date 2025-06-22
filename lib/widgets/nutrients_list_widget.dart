@@ -60,7 +60,6 @@ class NutrientsListWidget extends StatelessWidget {
     final progress = nutrient.progressPercentage / 100;
     final isExceeded = nutrient.isExceeded;
     
-    // Use more vibrant colors instead of grey
     final progressColor = isExceeded 
         ? const Color(0xFFFF6B35) // Vibrant orange for exceeded
         : nutrient.isGoalAchieved 

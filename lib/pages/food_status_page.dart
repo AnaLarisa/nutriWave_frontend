@@ -161,16 +161,20 @@ void _showAddFoodDialog() {
     context, 
     onSuccess: () async {
       print('🍽️ Food added successfully, refreshing list...');
+      print('🔧 DEBUG: mounted = $mounted');
       setState(() {
         _isLoading = true;
       });
       await Future.delayed(const Duration(milliseconds: 500));
       if (mounted) {
+        print('🔧 DEBUG: Calling _loadFoodLogs...');
         await _loadFoodLogs(); 
         print('🍽️ Food list refreshed, current count: ${_foodLogs.length}');
+      } else {
+        print('🔧 DEBUG: Widget not mounted, skipping refresh');
       }
     },
-    onScanBarcode: _handleBarcodeScanning, // ADD THIS LINE
+    onScanBarcode: _handleBarcodeScanning,
   );
 }
 

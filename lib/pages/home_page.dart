@@ -297,6 +297,13 @@ class _HomePageState extends State<HomePage> {
     _loadNutritionData();
   }
 
+  bool get _isSelectedDateToday {
+  final now = DateTime.now();
+  return _selectedDate.year == now.year &&
+         _selectedDate.month == now.month &&
+         _selectedDate.day == now.day;
+  }
+
   void _showReportDownloadDialog() {
     String selectedFormat = 'PDF';
     DateTime startDate = DateTime.now().subtract(const Duration(days: 30));
@@ -758,7 +765,7 @@ class _HomePageState extends State<HomePage> {
                 ],
 
                 //AI recommendations button
-                if (_nutritionData.isNotEmpty) ...[
+                if (_nutritionData.isNotEmpty && _isSelectedDateToday) ...[
                   Container(
                     width: double.infinity,
                     decoration: BoxDecoration(

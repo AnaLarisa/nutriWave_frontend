@@ -12,9 +12,10 @@ class ValidationService {
   }
 
   static String? validateEmail(String? value) {
-    if (value == null || value.isEmpty) {
+    if (value == null || value.trim().isEmpty) {
       return 'Please enter an e-mail address';
     }
+     value = value.trim();
     // Validate email format
     RegExp regex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
     if (!regex.hasMatch(value)) {
