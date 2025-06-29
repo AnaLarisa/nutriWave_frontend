@@ -39,7 +39,7 @@ class _LoginPageState extends State<LoginPage> {
         );
 
         if (result.isSuccess) {
-          Navigator.pushReplacementNamed(context, '/');
+          Navigator.pushReplacementNamed(context, '/logo-loading');
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

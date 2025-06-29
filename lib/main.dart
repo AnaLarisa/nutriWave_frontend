@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_downloader/flutter_downloader.dart';
+import 'package:nutriwave_frontend/pages/logo_loading_page.dart';
 import 'pages/authentication/login_page.dart';
 import 'pages/authentication/signUp_page.dart';
 import 'pages/home_page.dart';
@@ -33,6 +34,7 @@ class NutriWaveApp extends StatelessWidget {
       routes: {
         '/login': (context) => const LoginPage(),
         '/signup': (context) => const SignUpPage(),
+        '/logo-loading': (context) => const LogoLoadingPage(),
         '/': (context) => const HomePage()
       },
     );
